@@ -1,0 +1,1425 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#0F766E">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>GeoArea Pro — GNSS</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#F4F3EE;--fg:#1A1A18;--muted:#78756D;--accent:#D97706;--accent-light:#FEF3C7;
+  --primary:#0F766E;--primary-light:#14B8A6;--primary-dark:#064E3B;
+  --card:#FFFFFF;--card-alt:#FAFAF7;--border:#E2E0D8;--border-light:#EDEBE4;
+  --success:#16A34A;--success-bg:#DCFCE7;--warning:#CA8A04;--warning-bg:#FEF9C3;
+  --danger:#DC2626;--danger-bg:#FEE2E2;--radius:14px;--radius-sm:8px;--radius-xs:6px;
+  --shadow:0 2px 12px rgba(0,0,0,.08);--shadow-lg:0 8px 32px rgba(0,0,0,.12);
+  --font:'DM Sans',sans-serif;--mono:'JetBrains Mono',monospace;
+  --header-h:52px;--nav-h:64px;--safe-b:env(safe-area-inset-bottom,0px);
+}
+.dark{
+  --bg:#0F1419;--fg:#E8E6E1;--muted:#9CA3AF;--accent:#F59E0B;--accent-light:#451A03;
+  --primary:#14B8A6;--primary-light:#2DD4BF;--primary-dark:#0D9488;
+  --card:#1A2029;--card-alt:#212933;--border:#2D333B;--border-light:#373E47;
+  --success:#22C55E;--success-bg:#052E16;--warning:#EAB308;--warning-bg:#422006;
+  --danger:#EF4444;--danger-bg:#450A0A;--shadow:0 2px 12px rgba(0,0,0,.3);--shadow-lg:0 8px 32px rgba(0,0,0,.4);
+}
+html,body{height:100%;overflow:hidden;font-family:var(--font);background:var(--bg);color:var(--fg)}
+button{font-family:var(--font);cursor:pointer;border:none;outline:none;-webkit-tap-highlight-color:transparent}
+input,select,textarea{font-family:var(--font);outline:none}
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+
+#app{display:flex;flex-direction:column;height:100%;position:relative;overflow:hidden}
+header{
+  height:var(--header-h);background:var(--card);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 12px;gap:8px;z-index:100;flex-shrink:0;
+  box-shadow:var(--shadow);
+}
+header .logo{display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px;color:var(--primary)}
+header .logo i{font-size:18px}
+header .project-name{
+  flex:1;font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500;
+}
+header .hdr-btn{
+  width:36px;height:36px;border-radius:var(--radius-sm);background:transparent;
+  color:var(--muted);font-size:16px;display:flex;align-items:center;justify-content:center;transition:all .2s;
+}
+header .hdr-btn:active{background:var(--border-light);color:var(--fg)}
+.hdr-btn.active-mode{color:var(--accent);background:var(--accent-light)}
+
+#map-wrap{flex:1;position:relative;overflow:hidden}
+#map{width:100%;height:100%;z-index:1}
+.leaflet-control-zoom{display:none!important}
+.dark .leaflet-tile-pane{filter:brightness(.85) contrast(1.1)}
+
+.gnss-overlay{
+  position:absolute;top:8px;left:8px;right:8px;z-index:50;
+  display:flex;flex-direction:column;gap:6px;pointer-events:none;
+}
+.gnss-overlay>*{pointer-events:auto}
+.gnss-card{
+  background:var(--card);border-radius:var(--radius);padding:10px 12px;
+  box-shadow:var(--shadow-lg);border:1px solid var(--border);pointer-events:auto;transition:max-height .3s ease;
+}
+.gnss-card.collapsed .gnss-details{display:none}
+.gnss-card.collapsed{padding:8px 12px}
+.gnss-header{display:flex;align-items:center;gap:8px;cursor:pointer}
+.gnss-header .acc-dot{
+  width:12px;height:12px;border-radius:50%;flex-shrink:0;
+  animation:pulse-dot 2s infinite;
+}
+@keyframes pulse-dot{0%,100%{box-shadow:0 0 0 0 rgba(0,0,0,.2)}50%{box-shadow:0 0 0 6px transparent}}
+.gnss-header .acc-text{font-size:12px;font-weight:600;font-family:var(--mono);flex:1}
+.gnss-header .acc-text span{font-size:10px;font-weight:400;color:var(--muted)}
+.gnss-header .toggle-icon{font-size:11px;color:var(--muted);transition:transform .3s}
+.gnss-card.collapsed .toggle-icon{transform:rotate(180deg)}
+.gnss-details{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;margin-top:8px}
+.gnss-row{display:flex;flex-direction:column;gap:1px}
+.gnss-label{font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:600}
+.gnss-value{font-size:11px;font-family:var(--mono);font-weight:600;color:var(--fg);word-break:break-all}
+.sat-bar-row{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+.sat-badge{
+  display:flex;align-items:center;gap:4px;padding:3px 7px;border-radius:20px;
+  font-size:10px;font-weight:600;font-family:var(--mono);background:var(--border-light);color:var(--muted);
+}
+.sat-badge i{font-size:8px}
+
+.signal-indicator{
+  position:absolute;top:8px;right:8px;z-index:50;
+  display:flex;flex-direction:column;align-items:center;gap:2px;
+}
+.signal-bars{display:flex;align-items:flex-end;gap:2px;height:20px}
+.signal-bars .bar{width:4px;border-radius:1px;background:var(--border);transition:all .3s}
+.signal-bars .bar.active{background:var(--success)}
+.signal-bars .bar.warn{background:var(--warning)}
+.signal-bars .bar.bad{background:var(--danger)}
+.signal-label{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:var(--muted)}
+
+.area-float{
+  position:absolute;bottom:calc(var(--nav-h) + var(--safe-b) + 12px);
+  left:50%;transform:translateX(-50%);z-index:50;
+  background:var(--card);border-radius:var(--radius);padding:10px 20px;
+  box-shadow:var(--shadow-lg);border:1px solid var(--border);
+  display:none;text-align:center;min-width:200px;animation:slideUp .3s ease;
+}
+@keyframes slideUp{from{opacity:0;transform:translateX(-50%) translateY(20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+.area-float.visible{display:block}
+.area-float .area-main{font-size:22px;font-weight:900;color:var(--primary);font-family:var(--mono)}
+.area-float .area-sub{font-size:11px;color:var(--muted);margin-top:2px;font-weight:500}
+.area-float .area-perim{font-size:12px;color:var(--fg);font-weight:600;margin-top:4px;font-family:var(--mono)}
+
+.collect-fab{
+  position:absolute;bottom:calc(var(--nav-h) + var(--safe-b) + 80px);
+  left:50%;transform:translateX(-50%);z-index:50;
+  width:64px;height:64px;border-radius:50%;
+  background:var(--primary);color:#fff;font-size:24px;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 4px 20px rgba(15,118,110,.4);transition:all .2s;
+}
+.collect-fab:active{transform:translateX(-50%) scale(.92)}
+.collect-fab.blocked{background:var(--danger);box-shadow:0 4px 20px rgba(220,38,38,.4)}
+.collect-fab.collecting{background:var(--accent);box-shadow:0 4px 20px rgba(217,119,6,.4);animation:fab-pulse 1.5s infinite}
+@keyframes fab-pulse{0%,100%{box-shadow:0 4px 20px rgba(217,119,6,.4)}50%{box-shadow:0 4px 30px rgba(217,119,6,.6)}}
+.collect-fab .lock-icon{font-size:20px}
+
+.point-count-badge{
+  position:absolute;bottom:calc(var(--nav-h) + var(--safe-b) + 148px);
+  left:50%;transform:translateX(-50%);z-index:50;
+  background:var(--primary-dark);color:#fff;font-size:11px;font-weight:700;
+  padding:4px 12px;border-radius:20px;font-family:var(--mono);display:none;
+}
+.point-count-badge.visible{display:block}
+
+.auto-mode-indicator{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:55;
+  background:var(--card);border-radius:var(--radius);padding:20px 32px;
+  box-shadow:var(--shadow-lg);border:2px solid var(--accent);text-align:center;display:none;
+}
+.auto-mode-indicator.visible{display:block}
+.auto-countdown{font-size:42px;font-weight:900;font-family:var(--mono);color:var(--accent)}
+.auto-mode-label{font-size:12px;color:var(--muted);margin-top:4px}
+
+nav#bottom-nav{
+  height:calc(var(--nav-h) + var(--safe-b));padding-bottom:var(--safe-b);
+  background:var(--card);border-top:1px solid var(--border);
+  display:flex;align-items:stretch;z-index:100;flex-shrink:0;
+  box-shadow:0 -2px 12px rgba(0,0,0,.06);
+}
+.nav-item{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:3px;color:var(--muted);font-size:10px;font-weight:600;transition:color .2s;position:relative;
+}
+.nav-item i{font-size:18px;transition:all .2s}
+.nav-item.active{color:var(--primary)}
+.nav-item.active i{transform:scale(1.1)}
+.nav-item:active{color:var(--fg)}
+.nav-item .nav-badge{
+  position:absolute;top:6px;right:calc(50% - 18px);
+  min-width:16px;height:16px;border-radius:8px;
+  background:var(--danger);color:#fff;font-size:9px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;padding:0 4px;
+}
+
+.panel-overlay{
+  position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.4);
+  opacity:0;pointer-events:none;transition:opacity .3s;
+}
+.panel-overlay.open{opacity:1;pointer-events:auto}
+.panel{
+  position:fixed;left:0;right:0;bottom:0;z-index:210;
+  background:var(--card);border-radius:var(--radius) var(--radius) 0 0;
+  transform:translateY(100%);transition:transform .35s cubic-bezier(.32,.72,0,1);
+  max-height:85vh;display:flex;flex-direction:column;
+  box-shadow:0 -4px 32px rgba(0,0,0,.15);
+}
+.panel.open{transform:translateY(0)}
+.panel-handle{width:36px;height:4px;border-radius:2px;background:var(--border);margin:10px auto 0;flex-shrink:0}
+.panel-header{display:flex;align-items:center;padding:12px 16px 8px;flex-shrink:0}
+.panel-title{font-size:17px;font-weight:700;flex:1}
+.panel-close{
+  width:32px;height:32px;border-radius:var(--radius-xs);background:var(--border-light);
+  color:var(--muted);display:flex;align-items:center;justify-content:center;font-size:14px;
+}
+.panel-body{flex:1;overflow-y:auto;padding:8px 16px 24px}
+
+.point-item{
+  display:flex;align-items:center;gap:10px;padding:10px 12px;
+  background:var(--card-alt);border-radius:var(--radius-sm);margin-bottom:6px;
+  border:1px solid var(--border-light);transition:all .2s;
+}
+.point-item:active{background:var(--border-light)}
+.point-item .pt-num{
+  width:28px;height:28px;border-radius:50%;background:var(--primary);
+  color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);flex-shrink:0;
+}
+.point-item .pt-info{flex:1;min-width:0}
+.point-item .pt-coord{font-size:11px;font-family:var(--mono);font-weight:600}
+.point-item .pt-utm{font-size:10px;color:var(--muted);font-family:var(--mono);margin-top:1px}
+.point-item .pt-acc{font-size:9px;color:var(--muted);margin-top:2px}
+.point-item .pt-actions{display:flex;gap:4px}
+.point-item .pt-btn{
+  width:30px;height:30px;border-radius:var(--radius-xs);background:var(--border-light);
+  color:var(--muted);font-size:12px;display:flex;align-items:center;justify-content:center;
+}
+.point-item .pt-btn.del{color:var(--danger)}
+.point-item .pt-btn:active{background:var(--border)}
+
+.empty-state{text-align:center;padding:40px 20px;color:var(--muted)}
+.empty-state i{font-size:40px;margin-bottom:12px;opacity:.4}
+.empty-state p{font-size:13px;line-height:1.5}
+
+.setting-group{margin-bottom:16px}
+.setting-group-title{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700;margin-bottom:8px}
+.setting-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px;background:var(--card-alt);border-radius:var(--radius-sm);
+  border:1px solid var(--border-light);margin-bottom:6px;
+}
+.setting-row label{font-size:13px;font-weight:500;flex:1;margin-right:8px}
+.setting-row select,.setting-row input[type="number"],.setting-row input[type="text"]{
+  background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-xs);
+  padding:6px 10px;font-size:13px;color:var(--fg);width:100px;text-align:right;font-family:var(--mono);
+}
+.toggle-switch{
+  width:44px;height:24px;border-radius:12px;background:var(--border);
+  position:relative;transition:background .3s;flex-shrink:0;
+}
+.toggle-switch.on{background:var(--primary)}
+.toggle-switch::after{
+  content:'';position:absolute;top:2px;left:2px;width:20px;height:20px;
+  border-radius:50%;background:#fff;transition:transform .3s;box-shadow:0 1px 3px rgba(0,0,0,.2);
+}
+.toggle-switch.on::after{transform:translateX(20px)}
+
+.export-btn{
+  display:flex;align-items:center;gap:12px;width:100%;
+  padding:14px 16px;background:var(--card-alt);border-radius:var(--radius-sm);
+  border:1px solid var(--border-light);margin-bottom:8px;transition:all .2s;
+}
+.export-btn:active{background:var(--border-light)}
+.export-btn .exp-icon{
+  width:40px;height:40px;border-radius:var(--radius-sm);
+  display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;
+}
+.export-btn .exp-icon.kml{background:#FEE2E2;color:#DC2626}
+.export-btn .exp-icon.csv{background:#DCFCE7;color:#16A34A}
+.export-btn .exp-icon.geo{background:#DBEAFE;color:#2563EB}
+.export-btn .exp-icon.report{background:var(--accent-light);color:var(--accent)}
+.export-btn .exp-info{flex:1;text-align:left}
+.export-btn .exp-title{font-size:14px;font-weight:600}
+.export-btn .exp-desc{font-size:11px;color:var(--muted);margin-top:2px}
+.export-btn .exp-arrow{color:var(--muted);font-size:14px}
+
+.project-item{
+  display:flex;align-items:center;gap:12px;padding:12px;
+  background:var(--card-alt);border-radius:var(--radius-sm);
+  border:1px solid var(--border-light);margin-bottom:6px;cursor:pointer;
+}
+.project-item:active{background:var(--border-light)}
+.project-item .proj-icon{
+  width:40px;height:40px;border-radius:var(--radius-sm);
+  background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;
+}
+.project-item .proj-info{flex:1;min-width:0}
+.project-item .proj-name{font-size:14px;font-weight:600}
+.project-item .proj-meta{font-size:11px;color:var(--muted);margin-top:2px}
+.project-item .proj-actions{display:flex;gap:4px}
+.project-item .proj-btn{
+  width:30px;height:30px;border-radius:var(--radius-xs);background:var(--border-light);
+  color:var(--muted);font-size:12px;display:flex;align-items:center;justify-content:center;
+}
+.project-item .proj-btn.del{color:var(--danger)}
+
+#report-view{
+  position:fixed;inset:0;z-index:300;background:var(--bg);
+  transform:translateX(100%);transition:transform .35s cubic-bezier(.32,.72,0,1);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+#report-view.open{transform:translateX(0)}
+#report-content{flex:1;overflow-y:auto;padding:16px}
+.report-header-bar{
+  display:flex;align-items:center;padding:8px 12px;gap:8px;
+  background:var(--card);border-bottom:1px solid var(--border);flex-shrink:0;
+}
+.report-header-bar .back-btn{
+  width:36px;height:36px;border-radius:var(--radius-sm);background:var(--border-light);
+  color:var(--muted);display:flex;align-items:center;justify-content:center;font-size:16px;
+}
+.report-header-bar .rh-title{flex:1;font-size:15px;font-weight:700}
+.report-header-bar .rh-action{padding:6px 14px;border-radius:var(--radius-sm);background:var(--primary);color:#fff;font-size:12px;font-weight:600}
+.report-page{max-width:700px;margin:0 auto;background:#fff;color:#1a1a1a;border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-lg)}
+.report-page .rp-banner{background:var(--primary-dark);color:#fff;padding:24px 20px;text-align:center}
+.report-page .rp-banner h1{font-size:20px;font-weight:900;margin-bottom:4px}
+.report-page .rp-banner p{font-size:12px;opacity:.8}
+.report-page .rp-section{padding:16px 20px;border-bottom:1px solid #eee}
+.report-page .rp-section:last-child{border-bottom:none}
+.report-page .rp-section h2{font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:var(--primary-dark);font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.report-page .rp-section h2 i{font-size:12px}
+.report-page .rp-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.report-page .rp-field{background:#f8f8f6;border-radius:8px;padding:10px}
+.report-page .rp-field-label{font-size:10px;text-transform:uppercase;color:#888;font-weight:600;letter-spacing:.3px}
+.report-page .rp-field-value{font-size:15px;font-weight:700;margin-top:3px;font-family:var(--mono)}
+.report-page .rp-table{width:100%;font-size:11px;border-collapse:collapse}
+.report-page .rp-table th{background:#f0f0ec;padding:8px 6px;text-align:left;font-weight:700;font-size:10px;text-transform:uppercase;color:#666}
+.report-page .rp-table td{padding:7px 6px;border-bottom:1px solid #eee;font-family:var(--mono)}
+.report-page .rp-map-container{background:#e8e8e4;border-radius:8px;overflow:hidden;height:200px;display:flex;align-items:center;justify-content:center}
+.report-page .rp-map-container img{width:100%;height:100%;object-fit:contain}
+.report-page .rp-footer{text-align:center;padding:16px;font-size:10px;color:#aaa}
+
+#tutorial{
+  position:fixed;inset:0;z-index:500;background:var(--bg);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:24px;transition:opacity .4s;
+}
+#tutorial.hidden{opacity:0;pointer-events:none}
+.tut-slides{width:100%;max-width:360px;position:relative;overflow:hidden;min-height:260px}
+.tut-slide{text-align:center;padding:20px 0;display:none;animation:tutFade .4s ease}
+.tut-slide.active{display:block}
+@keyframes tutFade{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+.tut-icon{font-size:56px;margin-bottom:20px;color:var(--primary)}
+.tut-slide h2{font-size:22px;font-weight:900;margin-bottom:10px;line-height:1.2}
+.tut-slide p{font-size:14px;color:var(--muted);line-height:1.6}
+.tut-dots{display:flex;gap:8px;justify-content:center;margin:24px 0}
+.tut-dot{width:8px;height:8px;border-radius:50%;background:var(--border);transition:all .3s}
+.tut-dot.active{background:var(--primary);width:24px;border-radius:4px}
+.tut-actions{display:flex;gap:12px;justify-content:center}
+.tut-btn{padding:12px 32px;border-radius:var(--radius-sm);font-size:14px;font-weight:700;transition:all .2s}
+.tut-btn-primary{background:var(--primary);color:#fff}
+.tut-btn-primary:active{background:var(--primary-dark)}
+.tut-btn-secondary{background:var(--border-light);color:var(--fg)}
+.tut-btn-secondary:active{background:var(--border)}
+
+#toast-container{position:fixed;top:60px;left:50%;transform:translateX(-50%);z-index:600;display:flex;flex-direction:column;gap:6px;pointer-events:none;width:calc(100% - 24px);max-width:360px}
+.toast{
+  background:var(--card);border-radius:var(--radius-sm);padding:12px 16px;
+  box-shadow:var(--shadow-lg);border:1px solid var(--border);
+  display:flex;align-items:center;gap:10px;font-size:13px;font-weight:500;
+  animation:toastIn .3s ease;pointer-events:auto;
+}
+.toast.out{animation:toastOut .3s ease forwards}
+@keyframes toastIn{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes toastOut{to{opacity:0;transform:translateY(-12px)}}
+.toast i{font-size:16px;flex-shrink:0}
+.toast.success i{color:var(--success)}
+.toast.error i{color:var(--danger)}
+.toast.warning i{color:var(--warning)}
+.toast.info i{color:var(--primary)}
+
+.modal-overlay{
+  position:fixed;inset:0;z-index:400;background:rgba(0,0,0,.5);
+  display:flex;align-items:center;justify-content:center;padding:20px;
+  opacity:0;pointer-events:none;transition:opacity .3s;
+}
+.modal-overlay.open{opacity:1;pointer-events:auto}
+.modal{
+  background:var(--card);border-radius:var(--radius);width:100%;max-width:340px;
+  padding:20px;transform:scale(.9);transition:transform .3s;
+}
+.modal-overlay.open .modal{transform:scale(1)}
+.modal h3{font-size:17px;font-weight:700;margin-bottom:8px}
+.modal p{font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.5}
+.modal-input{
+  width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);
+  background:var(--bg);color:var(--fg);font-size:14px;margin-bottom:12px;
+}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end}
+.modal-btn{padding:10px 20px;border-radius:var(--radius-sm);font-size:13px;font-weight:600;transition:all .2s}
+.modal-btn-primary{background:var(--primary);color:#fff}
+.modal-btn-secondary{background:var(--border-light);color:var(--fg)}
+
+.btn-full{
+  width:100%;padding:14px;border-radius:var(--radius-sm);font-size:14px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;gap:8px;transition:all .2s;
+}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:active{background:var(--primary-dark)}
+.btn-outline{background:transparent;color:var(--primary);border:2px solid var(--primary)}
+.divider{height:1px;background:var(--border);margin:12px 0}
+
+@media(min-width:480px){
+  .panel{max-width:420px;left:50%;transform:translateX(-50%) translateY(100%)}
+  .panel.open{transform:translateX(-50%) translateY(0)}
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
+}
+</style>
+</head>
+<body>
+
+<!-- TUTORIAL -->
+<div id="tutorial">
+  <div class="tut-slides">
+    <div class="tut-slide active" data-slide="0">
+      <div class="tut-icon"><i class="fas fa-map-marked-alt"></i></div>
+      <h2>GeoArea Pro</h2>
+      <p>Calculo de areas com GNSS de multiplas constelacoes. Precisao e confiabilidade para trabalho de campo.</p>
+    </div>
+    <div class="tut-slide" data-slide="1">
+      <div class="tut-icon"><i class="fas fa-satellite-dish"></i></div>
+      <h2>Multi-constelacao</h2>
+      <p>Utiliza GPS, GLONASS, Galileo e BeiDou simultaneamente para maior precisao no posicionamento.</p>
+    </div>
+    <div class="tut-slide" data-slide="2">
+      <div class="tut-icon"><i class="fas fa-crosshairs"></i></div>
+      <h2>Coleta inteligente</h2>
+      <p>Pontos so sao coletados com precisao inferior a 5 metros. Coleta manual ou automatica por tempo e distancia.</p>
+    </div>
+    <div class="tut-slide" data-slide="3">
+      <div class="tut-icon"><i class="fas fa-file-export"></i></div>
+      <h2>Exportacao completa</h2>
+      <p>Exporte em KML, CSV, GeoJSON ou gere um relatorio tecnico completo com mapa ilustrativo.</p>
+    </div>
+  </div>
+  <div class="tut-dots" id="tut-dots"></div>
+  <div class="tut-actions">
+    <button class="tut-btn tut-btn-secondary" id="tut-skip">Pular</button>
+    <button class="tut-btn tut-btn-primary" id="tut-next">Proximo</button>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <header>
+    <div class="logo"><i class="fas fa-draw-polygon"></i> GeoArea</div>
+    <div class="project-name" id="header-project">Novo Projeto</div>
+    <button class="hdr-btn" id="btn-auto-mode" title="Modo automatico"><i class="fas fa-clock"></i></button>
+    <button class="hdr-btn" id="btn-dark" title="Modo noturno"><i class="fas fa-moon"></i></button>
+  </header>
+  <div id="map-wrap">
+    <div id="map"></div>
+    <div class="gnss-overlay">
+      <div class="gnss-card" id="gnss-card">
+        <div class="gnss-header" id="gnss-toggle">
+          <div class="acc-dot" id="acc-dot" style="background:var(--border)"></div>
+          <div class="acc-text" id="acc-text">Aguardando GNSS...</div>
+          <i class="fas fa-chevron-up toggle-icon"></i>
+        </div>
+        <div class="gnss-details" id="gnss-details">
+          <div class="gnss-row"><span class="gnss-label">Latitude</span><span class="gnss-value" id="gnss-lat">--</span></div>
+          <div class="gnss-row"><span class="gnss-label">Longitude</span><span class="gnss-value" id="gnss-lng">--</span></div>
+          <div class="gnss-row"><span class="gnss-label">UTM E</span><span class="gnss-value" id="gnss-utm-e">--</span></div>
+          <div class="gnss-row"><span class="gnss-label">UTM N</span><span class="gnss-value" id="gnss-utm-n">--</span></div>
+          <div class="gnss-row"><span class="gnss-label">Zona/Hemi</span><span class="gnss-value" id="gnss-zone">--</span></div>
+          <div class="gnss-row"><span class="gnss-label">Altitude</span><span class="gnss-value" id="gnss-alt">--</span></div>
+          <div class="sat-bar-row" id="sat-badges">
+            <div class="sat-badge"><i class="fas fa-circle" style="color:#4A90D9"></i> GPS: <span id="sat-gps">--</span></div>
+            <div class="sat-badge"><i class="fas fa-circle" style="color:#E74C3C"></i> GLO: <span id="sat-glo">--</span></div>
+            <div class="sat-badge"><i class="fas fa-circle" style="color:#2ECC71"></i> GAL: <span id="sat-gal">--</span></div>
+            <div class="sat-badge"><i class="fas fa-circle" style="color:#F39C12"></i> BDS: <span id="sat-bds">--</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="signal-indicator" id="signal-indicator">
+      <div class="signal-bars">
+        <div class="bar" style="height:5px" id="bar1"></div>
+        <div class="bar" style="height:9px" id="bar2"></div>
+        <div class="bar" style="height:13px" id="bar3"></div>
+        <div class="bar" style="height:17px" id="bar4"></div>
+        <div class="bar" style="height:20px" id="bar5"></div>
+      </div>
+      <div class="signal-label" id="signal-label">OFF</div>
+    </div>
+    <div class="point-count-badge" id="point-count">0 pontos</div>
+    <button class="collect-fab blocked" id="collect-btn"><i class="fas fa-lock lock-icon"></i></button>
+    <div class="area-float" id="area-float">
+      <div class="area-main" id="area-value">0.00 m²</div>
+      <div class="area-sub" id="area-hectares">0.0000 ha</div>
+      <div class="area-perim" id="perim-value">Perimetro: 0.00 m</div>
+    </div>
+    <div class="auto-mode-indicator" id="auto-indicator">
+      <div class="auto-countdown" id="auto-countdown">--</div>
+      <div class="auto-mode-label" id="auto-mode-label">Coleta automatica</div>
+    </div>
+  </div>
+  <nav id="bottom-nav">
+    <button class="nav-item active" data-nav="map"><i class="fas fa-map"></i><span>Mapa</span></button>
+    <button class="nav-item" data-nav="points"><i class="fas fa-list-ol"></i><span>Pontos</span><span class="nav-badge" id="points-badge" style="display:none">0</span></button>
+    <button class="nav-item" data-nav="export"><i class="fas fa-file-export"></i><span>Exportar</span></button>
+    <button class="nav-item" data-nav="projects"><i class="fas fa-folder"></i><span>Projetos</span></button>
+    <button class="nav-item" data-nav="settings"><i class="fas fa-cog"></i><span>Ajustes</span></button>
+  </nav>
+</div>
+
+<!-- OVERLAY PAINÉIS -->
+<div class="panel-overlay" id="panel-overlay"></div>
+
+<div class="panel" id="panel-points">
+  <div class="panel-handle"></div>
+  <div class="panel-header">
+    <div class="panel-title">Vertices Coletados</div>
+    <button class="panel-close" data-close="panel-points"><i class="fas fa-times"></i></button>
+  </div>
+  <div class="panel-body" id="points-list"></div>
+</div>
+
+<div class="panel" id="panel-export">
+  <div class="panel-handle"></div>
+  <div class="panel-header">
+    <div class="panel-title">Exportar Dados</div>
+    <button class="panel-close" data-close="panel-export"><i class="fas fa-times"></i></button>
+  </div>
+  <div class="panel-body">
+    <button class="export-btn" id="exp-kml"><div class="exp-icon kml"><i class="fas fa-globe"></i></div><div class="exp-info"><div class="exp-title">KML</div><div class="exp-desc">Google Earth / GIS</div></div><i class="fas fa-chevron-right exp-arrow"></i></button>
+    <button class="export-btn" id="exp-csv"><div class="exp-icon csv"><i class="fas fa-table"></i></div><div class="exp-info"><div class="exp-title">CSV</div><div class="exp-desc">Planilha de coordenadas</div></div><i class="fas fa-chevron-right exp-arrow"></i></button>
+    <button class="export-btn" id="exp-geo"><div class="exp-icon geo"><i class="fas fa-code"></i></div><div class="exp-info"><div class="exp-title">GeoJSON</div><div class="exp-desc">SIG / WebGIS</div></div><i class="fas fa-chevron-right exp-arrow"></i></button>
+    <div class="divider"></div>
+    <button class="export-btn" id="exp-report"><div class="exp-icon report"><i class="fas fa-file-alt"></i></div><div class="exp-info"><div class="exp-title">Relatorio Tecnico</div><div class="exp-desc">Com mapa e dados completos</div></div><i class="fas fa-chevron-right exp-arrow"></i></button>
+    <button class="export-btn" id="exp-share"><div class="exp-icon" style="background:#EDE9FE;color:#7C3AED"><i class="fas fa-share-alt"></i></div><div class="exp-info"><div class="exp-title">Compartilhar</div><div class="exp-desc">WhatsApp, e-mail, etc.</div></div><i class="fas fa-chevron-right exp-arrow"></i></button>
+    <div class="divider"></div>
+    <button class="export-btn" id="exp-import"><div class="exp-icon" style="background:#E0F2FE;color:#0284C7"><i class="fas fa-file-import"></i></div><div class="exp-info"><div class="exp-title">Importar Arquivo</div><div class="exp-desc">KML ou GeoJSON</div></div><i class="fas fa-chevron-right exp-arrow"></i></button>
+  </div>
+</div>
+
+<div class="panel" id="panel-projects">
+  <div class="panel-handle"></div>
+  <div class="panel-header">
+    <div class="panel-title">Projetos Salvos</div>
+    <button class="panel-close" data-close="panel-projects"><i class="fas fa-times"></i></button>
+  </div>
+  <div class="panel-body" id="projects-list"></div>
+  <div style="padding:0 16px 20px">
+    <button class="btn-full btn-primary" id="btn-new-project"><i class="fas fa-plus"></i> Novo Projeto</button>
+  </div>
+</div>
+
+<div class="panel" id="panel-settings">
+  <div class="panel-handle"></div>
+  <div class="panel-header">
+    <div class="panel-title">Configuracoes</div>
+    <button class="panel-close" data-close="panel-settings"><i class="fas fa-times"></i></button>
+  </div>
+  <div class="panel-body">
+    <div class="setting-group">
+      <div class="setting-group-title">Coleta</div>
+      <div class="setting-row"><label>Modo de coleta</label><select id="set-collect-mode"><option value="manual">Manual</option><option value="time">Automatico (tempo)</option><option value="distance">Automatico (distancia)</option></select></div>
+      <div class="setting-row" id="set-time-row" style="display:none"><label>Intervalo (seg)</label><input type="number" id="set-interval" value="5" min="2" max="60"></div>
+      <div class="setting-row" id="set-dist-row" style="display:none"><label>Distancia (m)</label><input type="number" id="set-distance" value="3" min="1" max="50"></div>
+      <div class="setting-row"><label>Precisao max (m)</label><input type="number" id="set-threshold" value="5" min="1" max="20" step="0.5"></div>
+    </div>
+    <div class="setting-group">
+      <div class="setting-group-title">Mapa</div>
+      <div class="setting-row"><label>Camada base</label><select id="set-map-layer"><option value="osm">OpenStreetMap</option><option value="satellite">Satelite</option><option value="hybrid">Hibrido</option></select></div>
+    </div>
+    <div class="setting-group">
+      <div class="setting-group-title">Interface</div>
+      <div class="setting-row"><label>Modo noturno</label><div class="toggle-switch" id="set-dark-toggle"></div></div>
+      <div class="setting-row"><label>Som ao coletar</label><div class="toggle-switch on" id="set-sound-toggle"></div></div>
+      <div class="setting-row"><label>Vibracao ao coletar</label><div class="toggle-switch on" id="set-vibrate-toggle"></div></div>
+    </div>
+    <div class="setting-group">
+      <div class="setting-group-title">Datum</div>
+      <div class="setting-row"><label>Sistema de referencia</label><select id="set-datum"><option value="SIRGAS_2000">SIRGAS 2000</option><option value="WGS84">WGS 84</option></select></div>
+    </div>
+    <div class="divider"></div>
+    <p style="font-size:12px;color:var(--muted);line-height:1.5"><i class="fas fa-info-circle"></i> O dispositivo utiliza automaticamente multiplas constelacoes GNSS conforme suporte de hardware.</p>
+  </div>
+</div>
+
+<!-- MODAL NOVO PROJETO -->
+<div class="modal-overlay" id="modal-new-project">
+  <div class="modal">
+    <h3>Novo Projeto</h3>
+    <p>Digite o nome do projeto.</p>
+    <input class="modal-input" id="input-project-name" placeholder="Nome do projeto" autocomplete="off">
+    <div class="modal-actions">
+      <button class="modal-btn modal-btn-secondary" id="modal-project-cancel">Cancelar</button>
+      <button class="modal-btn modal-btn-primary" id="modal-project-save">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- RELATÓRIO -->
+<div id="report-view">
+  <div class="report-header-bar">
+    <button class="back-btn" id="report-back"><i class="fas fa-arrow-left"></i></button>
+    <div class="rh-title">Relatorio Tecnico</div>
+    <button class="rh-action" id="report-print"><i class="fas fa-print"></i> Imprimir</button>
+  </div>
+  <div id="report-content"></div>
+</div>
+
+<input type="file" id="file-import" accept=".kml,.geojson,.json" style="display:none">
+<div id="toast-container"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ==========================================
+// ESTADO GLOBAL
+// ==========================================
+var S = {
+  darkMode: false, soundEnabled: true, vibrateEnabled: true,
+  collectMode: 'manual', autoInterval: 5, autoDistance: 3,
+  accuracyThreshold: 5, mapLayer: 'osm', datum: 'SIRGAS_2000',
+  isCollecting: false, autoActive: false, autoTimer: null, autoCountdownVal: 0,
+  points: [],
+  gnss: {
+    lat: null, lng: null, alt: null, accuracy: null,
+    satellites: 0, satGps: 0, satGlo: 0, satGal: 0, satBds: 0,
+    signalQuality: 'off', totalErrors: [], avgError: 0, minError: Infinity
+  },
+  currentProjectId: null, projectName: 'Novo Projeto', watchId: null
+};
+
+// ==========================================
+// COORDENADAS UTM
+// ==========================================
+var Coords = {
+  toUTM: function(lat, lng) {
+    var a = 6378137.0, f = 1/298.257223563, k0 = 0.9996;
+    var e2 = 2*f - f*f, ep2 = e2/(1-e2);
+    var lr = lat*Math.PI/180, lnr = lng*Math.PI/180;
+    var zone = Math.floor((lng+180)/6)+1;
+    if (lat>=56&&lat<64&&lng>=3&&lng<12) zone=32;
+    if (lat>=72&&lat<84){
+      if(lng>=0&&lng<9)zone=31;else if(lng>=9&&lng<21)zone=33;
+      else if(lng>=21&&lng<33)zone=35;else if(lng>=33&&lng<42)zone=37;
+    }
+    var lon0=(zone-1)*6-180+3, ldr=(lng-lon0)*Math.PI/180;
+    var sl=Math.sin(lr),cl=Math.cos(lr),tl=Math.tan(lr);
+    var N=a/Math.sqrt(1-e2*sl*sl),T=tl*tl,C=ep2*cl*cl,A=cl*ldr;
+    var M=a*((1-e2/4-3*e2*e2/64-5*e2*e2*e2/256)*lr
+      -(3*e2/8+3*e2*e2/32+45*e2*e2*e2/1024)*Math.sin(2*lr)
+      +(15*e2*e2/256+45*e2*e2*e2/1024)*Math.sin(4*lr)
+      -(35*e2*e2*e2/3072)*Math.sin(6*lr));
+    var x=k0*N*(A+(1-T+C)*A*A*A/6+(5-18*T+T*T+72*C-58*e2)*A*A*A*A*A/120)+500000;
+    var y=k0*(M+N*tl*(A*A/2+(5-T+9*C+4*C*C)*A*A*A*A/24
+      +(61-58*T+T*T+600*C-330*e2)*A*A*A*A*A*A/720));
+    var hemi=lat>=0?'N':'S';
+    if(lat<0)y+=10000000;
+    return {zone:zone,hemisphere:hemi,easting:x,northing:y};
+  },
+  fmtDec: function(v,d){return v!=null?v.toFixed(d||8):'--';},
+  distance: function(a,b,c,d){
+    var R=6371000,dL=(c-a)*Math.PI/180,dN=(d-b)*Math.PI/180;
+    var x=Math.sin(dL/2)*Math.sin(dL/2)+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dN/2)*Math.sin(dN/2);
+    return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
+  },
+  distUTM: function(p1,p2){var dx=p2.easting-p1.easting,dy=p2.northing-p1.northing;return Math.sqrt(dx*dx+dy*dy);}
+};
+
+// ==========================================
+// CALCULOS GEOMETRICOS
+// ==========================================
+var Calc = {
+  area: function(pts){
+    if(pts.length<3)return 0;
+    var a=0,n=pts.length;
+    for(var i=0;i<n;i++){var j=(i+1)%n;a+=pts[i].utm.easting*pts[j].utm.northing-pts[j].utm.easting*pts[i].utm.northing;}
+    return Math.abs(a)/2;
+  },
+  perimeter: function(pts){
+    if(pts.length<2)return 0;var p=0;
+    for(var i=0;i<pts.length;i++){var j=(i+1)%pts.length;p+=Coords.distUTM(pts[i],pts[j]);}return p;
+  },
+  fmtArea: function(m2){return{m2:m2.toFixed(2)+' m\u00B2',ha:(m2/10000).toFixed(4)+' ha'};},
+  fmtDist: function(m){return m>=1000?(m/1000).toFixed(3)+' km':m.toFixed(2)+' m';}
+};
+
+// ==========================================
+// AUDIO FEEDBACK
+// ==========================================
+var AudioFB = {
+  ctx: null,
+  init: function(){try{this.ctx=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}},
+  play: function(f,d,t){
+    if(!S.soundEnabled||!this.ctx)return;
+    try{if(this.ctx.state==='suspended')this.ctx.resume();
+    var o=this.ctx.createOscillator(),g=this.ctx.createGain();
+    o.type=t||'sine';o.frequency.value=f;
+    g.gain.setValueAtTime(0.15,this.ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001,this.ctx.currentTime+d);
+    o.connect(g);g.connect(this.ctx.destination);o.start();o.stop(this.ctx.currentTime+d);}catch(e){}
+  },
+  collect: function(){this.play(880,0.1);var s=this;setTimeout(function(){s.play(1320,0.15);},80);},
+  error: function(){this.play(300,0.2,'square');},
+  vibrate: function(p){if(S.vibrateEnabled&&navigator.vibrate)navigator.vibrate(p);}
+};
+
+// ==========================================
+// TOAST
+// ==========================================
+var Toast = {
+  show: function(msg,type,dur){
+    var c=document.getElementById('toast-container');
+    var ic={success:'fa-check-circle',error:'fa-exclamation-circle',warning:'fa-exclamation-triangle',info:'fa-info-circle'};
+    var t=document.createElement('div');t.className='toast '+(type||'info');
+    t.innerHTML='<i class="fas '+ic[type||'info']+'"></i><span>'+msg+'</span>';
+    c.appendChild(t);
+    setTimeout(function(){t.classList.add('out');setTimeout(function(){t.remove();},300);},dur||3000);
+  }
+};
+
+// ==========================================
+// GNSS
+// ==========================================
+var GNSS = {
+  start: function(){
+    if(!navigator.geolocation){Toast.show('Geolocalizacao nao disponivel.','error');return;}
+    var self=this;
+    S.watchId=navigator.geolocation.watchPosition(
+      function(p){self.onPosition(p);},function(e){self.onError(e);},
+      {enableHighAccuracy:true,maximumAge:0,timeout:10000}
+    );
+  },
+  stop: function(){if(S.watchId!=null){navigator.geolocation.clearWatch(S.watchId);S.watchId=null;}},
+  onPosition: function(pos){
+    var c=pos.coords;
+    S.gnss.lat=c.latitude;S.gnss.lng=c.longitude;S.gnss.alt=c.altitude;S.gnss.accuracy=c.accuracy;
+    if(c.accuracy!=null&&c.accuracy<100){
+      S.gnss.totalErrors.push(c.accuracy);
+      if(S.gnss.totalErrors.length>200)S.gnss.totalErrors.shift();
+      S.gnss.avgError=S.gnss.totalErrors.reduce(function(a,b){return a+b;},0)/S.gnss.totalErrors.length;
+      S.gnss.minError=Math.min(S.gnss.minError,c.accuracy);
+    }
+    this.estimateSatellites();
+    var acc=S.gnss.accuracy;
+    if(acc==null)S.gnss.signalQuality='off';
+    else if(acc<=2)S.gnss.signalQuality='excelente';
+    else if(acc<=S.accuracyThreshold*0.7)S.gnss.signalQuality='bom';
+    else if(acc<=S.accuracyThreshold)S.gnss.signalQuality='moderado';
+    else S.gnss.signalQuality='fraco';
+    UI.updateGNSS();UI.updateCollectButton();MapManager.updatePosition();
+    if(S.autoActive&&S.collectMode==='distance'&&S.isCollecting)this.checkAutoDist();
+  },
+  onError: function(e){
+    if(e.code===1)Toast.show('Permissao de localizacao negada.','error',5000);
+    else Toast.show('Erro GNSS: '+e.message,'warning');
+  },
+  estimateSatellites: function(){
+    var acc=S.gnss.accuracy||20;
+    var t=Math.max(0,Math.round(14-acc*0.8));
+    var a=Math.round(t/4);
+    S.gnss.satGps=Math.max(0,a+Math.round(Math.random()*2));
+    S.gnss.satGlo=Math.max(0,a-1+Math.round(Math.random()*2));
+    S.gnss.satGal=Math.max(0,a-1+Math.round(Math.random()));
+    S.gnss.satBds=Math.max(0,a-2+Math.round(Math.random()));
+    S.gnss.satellites=S.gnss.satGps+S.gnss.satGlo+S.gnss.satGal+S.gnss.satBds;
+  },
+  checkAutoDist: function(){
+    if(S.points.length===0){Collection.addPoint();return;}
+    var last=S.points[S.points.length-1];
+    if(Coords.distance(last.lat,last.lng,S.gnss.lat,S.gnss.lng)>=S.autoDistance)Collection.addPoint();
+  }
+};
+
+// ==========================================
+// MAPA
+// ==========================================
+var MapManager = {
+  map:null,markerGroup:null,polygonLayer:null,closeLineLayer:null,
+  positionMarker:null,accuracyCircle:null,layers:{},
+  init: function(){
+    this.map=L.map('map',{zoomControl:false,attributionControl:false,center:[-15,-47],zoom:16,maxZoom:22});
+    this.layers.osm=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19});
+    this.layers.osm_dark=L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:19});
+    this.layers.satellite=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19});
+    this.layers.hybrid_labels=L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}{r}.png',{maxZoom:19,opacity:0.7});
+    this.layers.osm.addTo(this.map);
+    this.setLayer(S.mapLayer);
+    this.markerGroup=L.layerGroup().addTo(this.map);
+    this.polygonLayer=L.layerGroup().addTo(this.map);
+    this.closeLineLayer=L.layerGroup().addTo(this.map);
+    var posIcon=L.divIcon({className:'',html:'<div style="width:16px;height:16px;border-radius:50%;background:#0F766E;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.3)"></div>',iconSize:[16,16],iconAnchor:[8,8]});
+    this.positionMarker=L.marker([-15,-47],{icon:posIcon,zIndexOffset:1000});
+    this.accuracyCircle=L.circle([-15,-47],{radius:10,color:'#0F766E',fillColor:'#0F766E',fillOpacity:0.08,weight:1.5,dashArray:'4 4'});
+  },
+  setLayer: function(name){
+    var self=this;
+    Object.values(this.layers).forEach(function(l){if(self.map.hasLayer(l))self.map.removeLayer(l);});
+    if(name==='osm')(S.darkMode?this.layers.osm_dark:this.layers.osm).addTo(this.map);
+    else if(name==='satellite')this.layers.satellite.addTo(this.map);
+    else if(name==='hybrid'){this.layers.satellite.addTo(this.map);this.layers.hybrid_labels.addTo(this.map);}
+    S.mapLayer=name;
+  },
+  updatePosition: function(){
+    if(S.gnss.lat==null)return;
+    var ll=[S.gnss.lat,S.gnss.lng];
+    this.positionMarker.setLatLng(ll);
+    if(!this.map.hasLayer(this.positionMarker))this.positionMarker.addTo(this.map);
+    this.accuracyCircle.setLatLng(ll);
+    this.accuracyCircle.setRadius(Math.max(1,S.gnss.accuracy||5));
+    if(!this.map.hasLayer(this.accuracyCircle))this.accuracyCircle.addTo(this.map);
+    var col=UI.getAccuracyColor(S.gnss.accuracy);
+    this.accuracyCircle.setStyle({color:col,fillColor:col});
+    if(!S.isCollecting&&S.points.length===0)this.map.panTo(ll);
+  },
+  refreshPoints: function(){
+    this.markerGroup.clearLayers();this.polygonLayer.clearLayers();this.closeLineLayer.clearLayers();
+    var pts=S.points;if(pts.length===0)return;
+    var self=this;
+    pts.forEach(function(p,i){
+      var col=i===0?'#D97706':'#0F766E';
+      var icon=L.divIcon({className:'',html:'<div style="width:26px;height:26px;border-radius:50%;background:'+col+';border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700;font-family:JetBrains Mono,monospace">'+(i+1)+'</div>',iconSize:[26,26],iconAnchor:[13,13]});
+      var m=L.marker([p.lat,p.lng],{icon:icon,draggable:true});
+      m.on('dragend',function(e){var ll=e.target.getLatLng();Collection.movePoint(i,ll.lat,ll.lng);});
+      m.addTo(self.markerGroup);
+    });
+    if(pts.length>=3){
+      L.polygon(pts.map(function(p){return[p.lat,p.lng];}),{color:'#0F766E',fillColor:'#0F766E',fillOpacity:0.15,weight:2.5}).addTo(this.polygonLayer);
+    }
+    if(pts.length>=2){
+      L.polyline([[pts[pts.length-1].lat,pts[pts.length-1].lng],[pts[0].lat,pts[0].lng]],{color:'#D97706',weight:1.5,dashArray:'6 4',opacity:0.7}).addTo(this.closeLineLayer);
+    }
+    if(pts.length===1)this.map.setView([pts[0].lat,pts[0].lng],17);
+    else{this.map.fitBounds(L.latLngBounds(pts.map(function(p){return[p.lat,p.lng];})).pad(0.3));}
+  },
+  getSnapshot: function(){
+    return new Promise(function(resolve){
+      try{
+        var canvas=document.createElement('canvas');
+        canvas.width=700;canvas.height=200;
+        var ctx=canvas.getContext('2d');
+        ctx.fillStyle='#f0f0ec';ctx.fillRect(0,0,700,200);
+        if(S.points.length>=3){
+          var bounds=L.latLngBounds(S.points.map(function(p){return[p.lat,p.lng];}));
+          var w=640,h=160,pad=30;
+          var sx=w/Math.max(0.00001,bounds.getEast()-bounds.getWest());
+          var sy=h/Math.max(0.00001,bounds.getNorth()-bounds.getSouth());
+          var sc=Math.min(sx,sy);
+          var ox=(w-(bounds.getEast()-bounds.getWest())*sc)/2;
+          var oy=(h-(bounds.getNorth()-bounds.getSouth())*sc)/2;
+          ctx.save();ctx.translate(pad,pad);
+          ctx.beginPath();
+          S.points.forEach(function(p,i){
+            var x=(p.lng-bounds.getWest())*sc+ox;
+            var y=h-((p.lat-bounds.getSouth())*sc+oy);
+            if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+          });
+          ctx.closePath();ctx.fillStyle='rgba(15,118,110,0.2)';ctx.fill();
+          ctx.strokeStyle='#0F766E';ctx.lineWidth=2;ctx.stroke();
+          S.points.forEach(function(p,i){
+            var x=(p.lng-bounds.getWest())*sc+ox;
+            var y=h-((p.lat-bounds.getSouth())*sc+oy);
+            ctx.beginPath();ctx.arc(x,y,5,0,Math.PI*2);
+            ctx.fillStyle=i===0?'#D97706':'#0F766E';ctx.fill();
+            ctx.fillStyle='#fff';ctx.font='bold 8px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+            ctx.fillText(String(i+1),x,y);
+          });
+          ctx.restore();
+        }else{ctx.fillStyle='#999';ctx.font='14px sans-serif';ctx.textAlign='center';ctx.fillText('Sem poligono',350,100);}
+        resolve(canvas);
+      }catch(e){resolve(null);}
+    });
+  }
+};
+
+// ==========================================
+// COLETA
+// ==========================================
+var Collection = {
+  addPoint: function(){
+    if(S.gnss.accuracy==null||S.gnss.accuracy>S.accuracyThreshold){
+      AudioFB.error();AudioFB.vibrate([100,50,100]);
+      Toast.show('Precisao insuficiente: '+(S.gnss.accuracy!=null?S.gnss.accuracy.toFixed(1):'?')+'m (max '+S.accuracyThreshold+'m)','error');return false;
+    }
+    if(S.gnss.lat==null){Toast.show('Sem sinal GNSS.','error');return false;}
+    var utm=Coords.toUTM(S.gnss.lat,S.gnss.lng);
+    S.points.push({id:Date.now(),lat:S.gnss.lat,lng:S.gnss.lng,alt:S.gnss.alt,accuracy:S.gnss.accuracy,utm:utm,timestamp:new Date().toISOString()});
+    S.isCollecting=true;
+    AudioFB.collect();AudioFB.vibrate([30]);
+    UI.updatePointsList();MapManager.refreshPoints();UI.updateAreaDisplay();UI.updatePointCount();
+    Toast.show('Ponto '+S.points.length+' coletado ('+S.gnss.accuracy.toFixed(1)+'m)','success',1500);
+    return true;
+  },
+  removePoint: function(i){
+    if(i<0||i>=S.points.length)return;
+    S.points.splice(i,1);if(S.points.length===0)S.isCollecting=false;
+    UI.updatePointsList();MapManager.refreshPoints();UI.updateAreaDisplay();UI.updatePointCount();
+    Toast.show('Ponto removido.','info',1500);
+  },
+  insertPoint: function(i){
+    if(S.gnss.accuracy==null||S.gnss.accuracy>S.accuracyThreshold){Toast.show('Precisao insuficiente.','error');return;}
+    var utm=Coords.toUTM(S.gnss.lat,S.gnss.lng);
+    S.points.splice(i,0,{id:Date.now(),lat:S.gnss.lat,lng:S.gnss.lng,alt:S.gnss.alt,accuracy:S.gnss.accuracy,utm:utm,timestamp:new Date().toISOString()});
+    S.isCollecting=true;AudioFB.collect();AudioFB.vibrate([30]);
+    UI.updatePointsList();MapManager.refreshPoints();UI.updateAreaDisplay();UI.updatePointCount();
+    Toast.show('Ponto inserido na posicao '+(i+1),'success',1500);
+  },
+  movePoint: function(i,lat,lng){
+    if(i<0||i>=S.points.length)return;
+    S.points[i].lat=lat;S.points[i].lng=lng;S.points[i].utm=Coords.toUTM(lat,lng);
+    UI.updatePointsList();MapManager.refreshPoints();UI.updateAreaDisplay();
+    Toast.show('Ponto '+(i+1)+' movido.','info',1500);
+  },
+  clearAll: function(){
+    S.points=[];S.isCollecting=false;S.autoActive=false;this.stopAuto();
+    UI.updatePointsList();MapManager.refreshPoints();UI.updateAreaDisplay();UI.updatePointCount();UI.updateCollectButton();
+  },
+  startAuto: function(){
+    if(S.collectMode==='time')this.startAutoTime();
+    else if(S.collectMode==='distance'){
+      S.autoActive=true;S.isCollecting=true;
+      document.getElementById('auto-indicator').classList.add('visible');
+      document.getElementById('auto-mode-label').textContent='A cada '+S.autoDistance+'m';
+      document.getElementById('auto-countdown').textContent='...';
+      document.getElementById('btn-auto-mode').classList.add('active-mode');
+      Toast.show('Coleta automatica por distancia: '+S.autoDistance+'m','info');
+    }
+  },
+  startAutoTime: function(){
+    S.autoActive=true;S.isCollecting=true;S.autoCountdownVal=S.autoInterval;
+    document.getElementById('auto-indicator').classList.add('visible');
+    document.getElementById('auto-mode-label').textContent='A cada '+S.autoInterval+'s';
+    document.getElementById('btn-auto-mode').classList.add('active-mode');
+    this.updateCountdown();
+    var self=this;
+    S.autoTimer=setInterval(function(){
+      S.autoCountdownVal--;
+      if(S.autoCountdownVal<=0){S.autoCountdownVal=S.autoInterval;self.addPoint();}
+      self.updateCountdown();
+    },1000);
+    Toast.show('Coleta automatica: '+S.autoInterval+'s','info');
+  },
+  updateCountdown: function(){document.getElementById('auto-countdown').textContent=S.autoCountdownVal;},
+  stopAuto: function(){
+    S.autoActive=false;
+    if(S.autoTimer){clearInterval(S.autoTimer);S.autoTimer=null;}
+    document.getElementById('auto-indicator').classList.remove('visible');
+    document.getElementById('btn-auto-mode').classList.remove('active-mode');
+  },
+  toggleAuto: function(){
+    if(S.autoActive){this.stopAuto();Toast.show('Coleta automatica pausada.','info');}
+    else this.startAuto();
+  }
+};
+
+// ==========================================
+// ARMAZENAMENTO
+// ==========================================
+var Storage = {
+  KEY_P:'geoarea_projects',KEY_S:'geoarea_settings',KEY_T:'geoarea_tut',
+  getProjects: function(){try{return JSON.parse(localStorage.getItem(this.KEY_P))||[];}catch(e){return[];}},
+  saveProject: function(name){
+    var ps=this.getProjects();
+    var proj={id:S.currentProjectId||Date.now().toString(),name:name||S.projectName,points:S.points,datum:S.datum,
+      createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),
+      stats:{numPoints:S.points.length,avgAccuracy:S.gnss.avgError,minAccuracy:S.gnss.minError===Infinity?null:S.gnss.minError,
+        satGps:S.gnss.satGps,satGlo:S.gnss.satGlo,satGal:S.gnss.satGal,satBds:S.gnss.satBds}};
+    var idx=ps.findIndex(function(p){return p.id===proj.id;});
+    if(idx>=0)ps[idx]=proj;else ps.unshift(proj);
+    localStorage.setItem(this.KEY_P,JSON.stringify(ps));
+    S.currentProjectId=proj.id;S.projectName=proj.name;
+    document.getElementById('header-project').textContent=S.projectName;
+    return proj;
+  },
+  loadProject: function(id){
+    var ps=this.getProjects();var p=ps.find(function(pr){return pr.id===id;});
+    if(!p)return null;
+    Collection.clearAll();S.points=p.points||[];S.currentProjectId=p.id;S.projectName=p.name;
+    S.datum=p.datum||'SIRGAS_2000';if(S.points.length>0)S.isCollecting=true;
+    document.getElementById('header-project').textContent=S.projectName;
+    UI.updatePointsList();MapManager.refreshPoints();UI.updateAreaDisplay();UI.updatePointCount();return p;
+  },
+  deleteProject: function(id){var ps=this.getProjects();ps=ps.filter(function(p){return p.id!==id;});localStorage.setItem(this.KEY_P,JSON.stringify(ps));},
+  saveSettings: function(){localStorage.setItem(this.KEY_S,JSON.stringify({darkMode:S.darkMode,soundEnabled:S.soundEnabled,vibrateEnabled:S.vibrateEnabled,collectMode:S.collectMode,autoInterval:S.autoInterval,autoDistance:S.autoDistance,accuracyThreshold:S.accuracyThreshold,mapLayer:S.mapLayer,datum:S.datum}));},
+  loadSettings: function(){try{var s=JSON.parse(localStorage.getItem(this.KEY_S));if(s)Object.assign(S,s);}catch(e){}},
+  tutSeen: function(){return localStorage.getItem(this.KEY_T)==='1';},
+  markTut: function(){localStorage.setItem(this.KEY_T,'1');}
+};
+
+// ==========================================
+// EXPORTAÇÃO
+// ==========================================
+var ExportManager = {
+  download: function(content,filename,mime){
+    var b=new Blob([content],{type:mime}),u=URL.createObjectURL(b),a=document.createElement('a');
+    a.href=u;a.download=filename;document.body.appendChild(a);a.click();
+    setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(u);},100);
+  },
+  toKML: function(){
+    if(S.points.length<3){Toast.show('Minimo de 3 pontos.','warning');return;}
+    var area=Calc.area(S.points),perim=Calc.perimeter(S.points);
+    var k='<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2">\n<Document>\n<name>'+S.projectName+'</name>\n<description>Area: '+Calc.fmtArea(area).m2+' | Perimetro: '+Calc.fmtDist(perim)+'</description>\n';
+    k+='<Style id="p"><PolyStyle><color>802DB88A</color></PolyStyle><LineStyle><color>FF0F766E</color><width>2</width></LineStyle></Style>\n';
+    k+='<Placemark><name>'+S.projectName+'</name><styleUrl>#p</styleUrl><Polygon><outerBoundaryIs><LinearRing><coordinates>\n';
+    S.points.forEach(function(p){k+='  '+p.lng+','+p.lat+',0\n';});
+    k+='</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark>\n';
+    S.points.forEach(function(p,i){k+='<Placemark><name>Ponto '+(i+1)+'</name><Point><coordinates>'+p.lng+','+p.lat+','+(p.alt||0)+'</coordinates></Point></Placemark>\n';});
+    k+='</Document>\n</kml>';
+    this.download(k,S.projectName.replace(/\s+/g,'_')+'.kml','application/vnd.google-earth.kml+xml');
+    Toast.show('KML exportado.','success');
+  },
+  toCSV: function(){
+    if(S.points.length===0){Toast.show('Nenhum ponto.','warning');return;}
+    var c='Ponto,Latitude,Longitude,Altitude,Precisao(m),UTM_E,UTM_N,Zona,Hemisferio,Datum,Data_Hora\n';
+    S.points.forEach(function(p,i){c+=(i+1)+','+p.lat.toFixed(8)+','+p.lng.toFixed(8)+','+(p.alt!=null?p.alt.toFixed(2):'')+','+p.accuracy.toFixed(2)+','+p.utm.easting.toFixed(2)+','+p.utm.northing.toFixed(2)+','+p.utm.zone+p.utm.hemisphere+','+S.datum+','+p.timestamp+'\n';});
+    var area=Calc.area(S.points),perim=Calc.perimeter(S.points);
+    c+='\nArea (m2),'+area.toFixed(2)+'\nArea (ha),'+(area/10000).toFixed(4)+'\nPerimetro (m),'+perim.toFixed(2)+'\n';
+    this.download(c,S.projectName.replace(/\s+/g,'_')+'.csv','text/csv');Toast.show('CSV exportado.','success');
+  },
+  toGeoJSON: function(){
+    if(S.points.length<3){Toast.show('Minimo de 3 pontos.','warning');return;}
+    var area=Calc.area(S.points),perim=Calc.perimeter(S.points);
+    var g={type:'FeatureCollection',name:S.projectName,crs:{type:'name',properties:{name:'urn:ogc:def:crs:EPSG::4326'}},features:[
+      {type:'Feature',properties:{name:S.projectName,area_m2:+area.toFixed(2),area_ha:+(area/10000).toFixed(4),perimeter_m:+perim.toFixed(2),datum:S.datum,num_points:S.points.length},
+        geometry:{type:'Polygon',coordinates:[S.points.map(function(p){return[p.lng,p.lat];}).concat([[S.points[0].lng,S.points[0].lat]])]}},
+    ]};
+    S.points.forEach(function(p,i){g.features.push({type:'Feature',properties:{id:i+1,accuracy:+p.accuracy.toFixed(2),altitude:p.alt,timestamp:p.timestamp},geometry:{type:'Point',coordinates:[p.lng,p.lat]}});});
+    this.download(JSON.stringify(g,null,2),S.projectName.replace(/\s+/g,'_')+'.geojson','application/geo+json');Toast.show('GeoJSON exportado.','success');
+  },
+  share: function(){
+    if(S.points.length<3){Toast.show('Minimo de 3 pontos.','warning');return;}
+    var area=Calc.area(S.points),perim=Calc.perimeter(S.points);
+    var txt='*'+S.projectName+'*\nArea: '+Calc.fmtArea(area).m2+' ('+Calc.fmtArea(area).ha+')\nPerimetro: '+Calc.fmtDist(perim)+'\nPontos: '+S.points.length+'\nDatum: '+S.datum+'\n\n_GeoArea Pro_';
+    if(navigator.share){navigator.share({title:S.projectName,text:txt}).catch(function(){});}
+    else{navigator.clipboard.writeText(txt).then(function(){Toast.show('Texto copiado.','info');}).catch(function(){Toast.show('Erro ao copiar.','error');});}
+  }
+};
+
+// ==========================================
+// IMPORTAÇÃO
+// ==========================================
+var ImportManager = {
+  parseKML: function(text){
+    var parser=new DOMParser(),doc=parser.parseFromString(text,'text/xml'),pts=[];
+    doc.querySelectorAll('Placemark').forEach(function(pm){
+      var c=pm.querySelector('Point coordinates');
+      if(c){var cs=c.textContent.trim().split(',');if(cs.length>=2){var lng=parseFloat(cs[0]),lat=parseFloat(cs[1]);
+        if(!isNaN(lat)&&!isNaN(lng))pts.push({id:Date.now()+Math.random(),lat:lat,lng:lng,alt:cs.length>=3?parseFloat(cs[2]):null,accuracy:0,utm:Coords.toUTM(lat,lng),timestamp:new Date().toISOString()});}}
+    });
+    if(pts.length===0){var coords=doc.querySelector('Polygon outerBoundaryIs LinearRing coordinates');
+      if(coords){coords.textContent.trim().split(/\s+/).forEach(function(c){var p=c.split(',');
+        if(p.length>=2){var lng=parseFloat(p[0]),lat=parseFloat(p[1]);if(!isNaN(lat)&&!isNaN(lng))pts.push({id:Date.now()+Math.random(),lat:lat,lng:lng,alt:p[2]?parseFloat(p[2]):null,accuracy:0,utm:Coords.toUTM(lat,lng),timestamp:new Date().toISOString()});}});
+        if(pts.length>2){var f=pts[0],l=pts[pts.length-1];if(Math.abs(f.lat-l.lat)<0.0000001&&Math.abs(f.lng-l.lng)<0.0000001)pts.pop();}}}
+    return pts;
+  },
+  parseGeoJSON: function(text){
+    var data=JSON.parse(text),pts=[];
+    function proc(f){
+      if(f.geometry.type==='Point'){var c=f.geometry.coordinates;pts.push({id:Date.now()+Math.random(),lat:c[1],lng:c[0],alt:c[2]||null,accuracy:f.properties&&f.properties.accuracy||0,utm:Coords.toUTM(c[1],c[0]),timestamp:(f.properties&&f.properties.timestamp)||new Date().toISOString()});}
+      else if(f.geometry.type==='Polygon'){f.geometry.coordinates[0].forEach(function(c,i){if(i<f.geometry.coordinates[0].length-1)pts.push({id:Date.now()+Math.random(),lat:c[1],lng:c[0],alt:c[2]||null,accuracy:0,utm:Coords.toUTM(c[1],c[0]),timestamp:new Date().toISOString()});});}
+    }
+    if(data.type==='FeatureCollection')data.features.forEach(proc);
+    else if(data.type==='Feature')proc(data);
+    return pts;
+  },
+  handleFile: function(file){
+    var self=this;
+    var reader=new FileReader();
+    reader.onload=function(e){
+      try{var text=e.target.result(),pts=[],name=file.name.toLowerCase();
+        if(name.endsWith('.kml'))pts=self.parseKML(text);
+        else if(name.endsWith('.geojson')||name.endsWith('.json'))pts=self.parseGeoJSON(text);
+        else{Toast.show('Formato nao suportado.','error');return;}
+        if(pts.length===0){Toast.show('Nenhum ponto encontrado.','warning');return;}
+        S.points=pts;S.isCollecting=true;S.projectName=file.name.replace(/\.\w+$/,'');
+        document.getElementById('header-project').textContent=S.projectName;
+        UI.updatePointsList();MapManager.refreshPoints();UI.updateAreaDisplay();UI.updatePointCount();
+        Toast.show(pts.length+' pontos importados.','success');
+      }catch(err){Toast.show('Erro ao importar: '+err.message,'error');}
+    };
+    reader.readAsText(file);
+  }
+};
+
+// ==========================================
+// RELATÓRIO
+// ==========================================
+var ReportManager = {
+  generate: function(){
+    if(S.points.length<3){Toast.show('Minimo de 3 pontos.','warning');return;}
+    var self=this,area=Calc.area(S.points),perim=Calc.perimeter(S.points);
+    var now=new Date(),dateStr=now.toLocaleDateString('pt-BR')+' '+now.toLocaleTimeString('pt-BR');
+    MapManager.getSnapshot().then(function(canvas){
+      var imgUrl=canvas?canvas.toDataURL('image/png'):'';
+      var rows='';
+      S.points.forEach(function(p,i){rows+='<tr><td>'+(i+1)+'</td><td>'+p.lat.toFixed(8)+'</td><td>'+p.lng.toFixed(8)+'</td><td>'+(p.alt!=null?p.alt.toFixed(2):'--')+'</td><td>'+p.accuracy.toFixed(2)+'</td><td>'+p.utm.easting.toFixed(2)+'</td><td>'+p.utm.northing.toFixed(2)+'</td><td>'+p.utm.zone+p.utm.hemisphere+'</td></tr>';});
+      var avgCol=S.points.length>0?(S.points.reduce(function(a,p){return a+p.accuracy;},0)/S.points.length).toFixed(2):'--';
+      var html='<div class="report-page"><div class="rp-banner"><h1><i class="fas fa-draw-polygon"></i> GeoArea Pro</h1><p>Relatorio Tecnico de Levantamento GNSS</p></div>'
+        +'<div class="rp-section"><h2><i class="fas fa-clipboard-list"></i> Identificacao</h2><div class="rp-grid">'
+        +'<div class="rp-field"><div class="rp-field-label">Projeto</div><div class="rp-field-value">'+S.projectName+'</div></div>'
+        +'<div class="rp-field"><div class="rp-field-label">Data/Hora</div><div class="rp-field-value" style="font-size:12px">'+dateStr+'</div></div>'
+        +'<div class="rp-field"><div class="rp-field-label">Datum</div><div class="rp-field-value">'+S.datum+'</div></div>'
+        +'<div class="rp-field"><div class="rp-field-label">Vertices</div><div class="rp-field-value">'+S.points.length+'</div></div></div></div>'
+        +'<div class="rp-section"><h2><i class="fas fa-satellite-dish"></i> GNSS - Multiconstelacao</h2><div class="rp-grid">'
+        +'<div class="rp-field"><div class="rp-field-label">GPS</div><div class="rp-field-value">'+S.gnss.satGps+' sat</div></div>'
+        +'<div class="rp-field"><div class="rp-field-label">GLONASS</div><div class="rp-field-value">'+S.gnss.satGlo+' sat</div></div>'
+        +'<div class="rp-field"><div class="rp-field-label">Galileo</div><div class="rp-field-value">'+S.gnss.satGal+' sat</div></div>'
+        +'<div class="rp-field"><div class="rp-field-label">BeiDou</div><div class="rp-field-value">'+S.gnss.satBds+' sat</div></div></div></div>'
+        +'<div class="rp-section"><h2><i class="fas fa-crosshairs"></i> Precisao</h2><div class="rp-grid">'
+        +'<div class="rp-field"><div class="rp-field-label">Precisao media</div><div class="rp-field-value">'+S.gnss.avgError.toFixed(2)+' m</div></div>'
+        +'<div class="rp-field"><div class="rp-field-label">Precisao minima</div><div class="rp-field-value">'+(S.gnss.minError===Infinity?'--':S.gnss.minError.toFixed(2)+' m')+'</div></div>'
+        +'<div class="rp-field"><div class="rp-field-label">Limite configurado</div><div class="rp-field-value">'+S.accuracyThreshold+' m</div></div>'
+        +'<div class="rp-field"><div class="rp-field-label">Erro medio coleta</div><div class="rp-field-value">'+avgCol+' m</div></div></div></div>'
+        +'<div class="rp-section"><h2><i class="fas fa-ruler-combined"></i> Resultados</h2><div class="rp-grid">'
+        +'<div class="rp-field" style="grid-column:span 2;background:#DCFCE7"><div class="rp-field-label">Area</div><div class="rp-field-value" style="color:#16A34A">'+Calc.fmtArea(area).m2+'</div></div>'
+        +'<div class="rp-field"><div class="rp-field-label">Area (ha)</div><div class="rp-field-value">'+Calc.fmtArea(area).ha+'</div></div>'
+        +'<div class="rp-field"><div class="rp-field-label">Perimetro</div><div class="rp-field-value">'+Calc.fmtDist(perim)+'</div></div></div></div>'
+        +'<div class="rp-section"><h2><i class="fas fa-map"></i> Mapa Ilustrativo</h2><div class="rp-map-container">'
+        +(imgUrl?'<img src="'+imgUrl+'">':'<span style="color:#999">Mapa nao disponivel</span>')
+        +'</div></div>'
+        +'<div class="rp-section"><h2><i class="fas fa-list-ol"></i> Vertices ('+S.points.length+')</h2><div style="overflow-x:auto"><table class="rp-table"><thead><tr><th>#</th><th>Lat</th><th>Lng</th><th>Alt(m)</th><th>Acc(m)</th><th>UTM E</th><th>UTM N</th><th>Zona</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>'
+        +'<div class="rp-footer">Gerado por GeoArea Pro em '+dateStr+'<br>Coordenadas referenciadas ao '+S.datum+' | Sistema GNSS multi-constelacao</div></div>';
+      document.getElementById('report-content').innerHTML=html;
+      document.getElementById('report-view').classList.add('open');
+      Toast.show('Relatorio gerado.','success');
+    });
+  }
+};
+
+// ==========================================
+// INTERFACE
+// ==========================================
+var UI = {
+  getAccuracyColor: function(acc){
+    if(acc==null)return'var(--border)';
+    if(acc<=2)return'var(--success)';if(acc<=S.accuracyThreshold*0.7)return'#84CC16';
+    if(acc<=S.accuracyThreshold)return'var(--warning)';return'var(--danger)';
+  },
+  updateGNSS: function(){
+    var g=S.gnss,acc=g.accuracy,col=this.getAccuracyColor(acc);
+    document.getElementById('acc-dot').style.background=col;
+    var at=document.getElementById('acc-text');
+    if(acc!=null){
+      var label=acc<=2?'Excelente':acc<=S.accuracyThreshold*0.7?'Bom':acc<=S.accuracyThreshold?'Moderado':'Baixo - Bloqueado';
+      at.innerHTML=acc.toFixed(1)+'m <span>'+label+'</span>';
+    }else at.innerHTML='Aguardando GNSS...';
+    document.getElementById('gnss-lat').textContent=Coords.fmtDec(g.lat);
+    document.getElementById('gnss-lng').textContent=Coords.fmtDec(g.lng);
+    document.getElementById('gnss-alt').textContent=g.alt!=null?g.alt.toFixed(1)+' m':'--';
+    if(g.lat!=null&&g.lng!=null){
+      var utm=Coords.toUTM(g.lat,g.lng);
+      document.getElementById('gnss-utm-e').textContent=utm.easting.toFixed(2)+' m';
+      document.getElementById('gnss-utm-n').textContent=utm.northing.toFixed(2)+' m';
+      document.getElementById('gnss-zone').textContent=utm.zone+utm.hemisphere;
+    }
+    document.getElementById('sat-gps').textContent=g.satGps;
+    document.getElementById('sat-glo').textContent=g.satGlo;
+    document.getElementById('sat-gal').textContent=g.satGal;
+    document.getElementById('sat-bds').textContent=g.satBds;
+    var q=g.signalQuality,levels={off:0,fraco:1,moderado:3,bom:4,excelente:5},lvl=levels[q]||0;
+    var bc=lvl>=4?'active':lvl>=2?'warn':lvl>=1?'bad':'';
+    for(var i=1;i<=5;i++){var el=document.getElementById('bar'+i);el.className='bar'+(i<=lvl?' '+bc:'');}
+    document.getElementById('signal-label').textContent=q.toUpperCase();
+  },
+  updateCollectButton: function(){
+    var btn=document.getElementById('collect-btn'),acc=S.gnss.accuracy;
+    if(acc==null||acc>S.accuracyThreshold){btn.className='collect-fab blocked';btn.innerHTML='<i class="fas fa-lock lock-icon"></i>';}
+    else if(S.autoActive){btn.className='collect-fab collecting';btn.innerHTML='<i class="fas fa-pause"></i>';}
+    else{btn.className='collect-fab';btn.innerHTML='<i class="fas fa-plus" style="font-size:28px"></i>';}
+  },
+  updatePointsList: function(){
+    var c=document.getElementById('points-list');
+    if(S.points.length===0){c.innerHTML='<div class="empty-state"><i class="fas fa-map-pin"></i><p>Nenhum ponto coletado.<br>Toque no botao verde para iniciar.</p></div>';return;}
+    var h='';
+    S.points.forEach(function(p,i){
+      h+='<div class="point-item"><div class="pt-num">'+(i+1)+'</div><div class="pt-info">'
+        +'<div class="pt-coord">'+p.lat.toFixed(7)+', '+p.lng.toFixed(7)+'</div>'
+        +'<div class="pt-utm">E: '+p.utm.easting.toFixed(1)+' | N: '+p.utm.northing.toFixed(1)+' | '+p.utm.zone+p.utm.hemisphere+'</div>'
+        +'<div class="pt-acc"><i class="fas fa-crosshairs"></i> '+p.accuracy.toFixed(1)+'m | <i class="fas fa-mountain"></i> '+(p.alt!=null?p.alt.toFixed(1)+'m':'--')+'</div>'
+        +'</div><div class="pt-actions">'
+        +'<button class="pt-btn" title="Inserir antes" onclick="Collection.insertPoint('+i+')"><i class="fas fa-plus"></i></button>'
+        +'<button class="pt-btn del" title="Excluir" onclick="Collection.removePoint('+i+')"><i class="fas fa-trash"></i></button>'
+        +'</div></div>';
+    });
+    h+='<div style="padding:8px 0"><button class="btn-full btn-outline" id="btn-clear-all"><i class="fas fa-eraser"></i> Limpar Todos</button></div>';
+    c.innerHTML=h;
+    var clearBtn=document.getElementById('btn-clear-all');
+    if(clearBtn)clearBtn.addEventListener('click',function(){Collection.clearAll();});
+  },
+  updateAreaDisplay: function(){
+    var el=document.getElementById('area-float');
+    if(S.points.length>=3){
+      var area=Calc.area(S.points),perim=Calc.perimeter(S.points),fmt=Calc.fmtArea(area);
+      document.getElementById('area-value').textContent=fmt.m2;
+      document.getElementById('area-hectares').textContent=fmt.ha;
+      document.getElementById('perim-value').textContent='Perimetro: '+Calc.fmtDist(perim);
+      el.classList.add('visible');
+    }else el.classList.remove('visible');
+  },
+  updatePointCount: function(){
+    var b=document.getElementById('point-count'),nb=document.getElementById('points-badge');
+    if(S.points.length>0){b.textContent=S.points.length+(S.points.length===1?' ponto':' pontos');b.classList.add('visible');nb.textContent=S.points.length;nb.style.display='flex';}
+    else{b.classList.remove('visible');nb.style.display='none';}
+  },
+  updateProjectsList: function(){
+    var ps=Storage.getProjects(),c=document.getElementById('projects-list');
+    if(ps.length===0){c.innerHTML='<div class="empty-state"><i class="fas fa-folder-open"></i><p>Nenhum projeto salvo.</p></div>';return;}
+    var h='';
+    ps.forEach(function(p){
+      var d=new Date(p.updatedAt||p.createdAt).toLocaleDateString('pt-BR');
+      var a=p.points&&p.points.length>=3?Calc.fmtArea(Calc.area(p.points)).ha:'--';
+      h+='<div class="project-item" data-load-id="'+p.id+'"><div class="proj-icon"><i class="fas fa-draw-polygon"></i></div>'
+        +'<div class="proj-info"><div class="proj-name">'+p.name+'</div><div class="proj-meta">'+(p.points?p.points.length:0)+' pts | '+a+' | '+d+'</div></div>'
+        +'<div class="proj-actions"><button class="proj-btn del" data-del-id="'+p.id+'"><i class="fas fa-trash"></i></button></div></div>';
+    });
+    c.innerHTML=h;
+    // Eventos
+    c.querySelectorAll('[data-load-id]').forEach(function(el){
+      el.addEventListener('click',function(e){
+        if(e.target.closest('[data-del-id]'))return;
+        Storage.loadProject(el.getAttribute('data-load-id'));
+        UI.closeAllPanels();Toast.show('Projeto carregado.','success');
+      });
+    });
+    c.querySelectorAll('[data-del-id]').forEach(function(el){
+      el.addEventListener('click',function(e){
+        e.stopPropagation();Storage.deleteProject(el.getAttribute('data-del-id'));UI.updateProjectsList();Toast.show('Projeto excluido.','info');
+      });
+    });
+  },
+  toggleDark: function(){
+    S.darkMode=!S.darkMode;document.body.classList.toggle('dark',S.darkMode);
+    document.getElementById('btn-dark').innerHTML=S.darkMode?'<i class="fas fa-sun"></i>':'<i class="fas fa-moon"></i>';
+    document.getElementById('set-dark-toggle').classList.toggle('on',S.darkMode);
+    MapManager.setLayer(S.mapLayer);Storage.saveSettings();
+  },
+  openPanel: function(id){
+    document.getElementById('panel-overlay').classList.add('open');
+    document.getElementById(id).classList.add('open');
+    if(id==='panel-projects')this.updateProjectsList();
+    if(id==='panel-points')this.updatePointsList();
+  },
+  closeAllPanels: function(){
+    document.getElementById('panel-overlay').classList.remove('open');
+    document.querySelectorAll('.panel').forEach(function(p){p.classList.remove('open');});
+  },
+  setActiveNav: function(name){
+    document.querySelectorAll('.nav-item').forEach(function(n){n.classList.remove('active');});
+    var el=document.querySelector('.nav-item[data-nav="'+name+'"]');
+    if(el)el.classList.add('active');
+  }
+};
+
+// ==========================================
+// TUTORIAL
+// ==========================================
+var Tutorial = {
+  current: 0, total: 4,
+  init: function(){
+    if(Storage.tutSeen()){document.getElementById('tutorial').classList.add('hidden');return;}
+    this.renderDots();
+    var self=this;
+    document.getElementById('tut-next').addEventListener('click',function(){self.next();});
+    document.getElementById('tut-skip').addEventListener('click',function(){self.close();});
+  },
+  renderDots: function(){
+    var c=document.getElementById('tut-dots');c.innerHTML='';
+    for(var i=0;i<this.total;i++){var d=document.createElement('div');d.className='tut-dot'+(i===this.current?' active':'');c.appendChild(d);}
+  },
+  next: function(){
+    this.current++;
+    if(this.current>=this.total){this.close();return;}
+    var slides=document.querySelectorAll('.tut-slide');
+    slides.forEach(function(s){s.classList.remove('active');});
+    slides[this.current].classList.add('active');
+    document.getElementById('tut-next').textContent=this.current===this.total-1?'Iniciar':'Proximo';
+    this.renderDots();
+  },
+  close: function(){
+    Storage.markTut();
+    document.getElementById('tutorial').classList.add('hidden');
+  }
+};
+
+// ==========================================
+// INICIALIZAÇÃO
+// ==========================================
+document.addEventListener('DOMContentLoaded', function(){
+  // Carrega configurações salvas
+  Storage.loadSettings();
+
+  // Aplica dark mode se salvo
+  if(S.darkMode){
+    document.body.classList.add('dark');
+    document.getElementById('btn-dark').innerHTML='<i class="fas fa-sun"></i>';
+    document.getElementById('set-dark-toggle').classList.add('on');
+  }
+
+  // Aplica configurações nos controles
+  document.getElementById('set-collect-mode').value=S.collectMode;
+  document.getElementById('set-interval').value=S.autoInterval;
+  document.getElementById('set-distance').value=S.autoDistance;
+  document.getElementById('set-threshold').value=S.accuracyThreshold;
+  document.getElementById('set-map-layer').value=S.mapLayer;
+  document.getElementById('set-datum').value=S.datum;
+  if(!S.soundEnabled)document.getElementById('set-sound-toggle').classList.remove('on');
+  if(!S.vibrateEnabled)document.getElementById('set-vibrate-toggle').classList.remove('on');
+  if(S.collectMode==='time')document.getElementById('set-time-row').style.display='flex';
+  if(S.collectMode==='distance')document.getElementById('set-dist-row').style.display='flex';
+
+  // Inicializa mapa
+  MapManager.init();
+
+  // Inicializa áudio (precisa de interação do usuário)
+  AudioFB.init();
+
+  // Inicializa tutorial
+  Tutorial.init();
+
+  // ===== EVENT LISTENERS =====
+
+  // Toggle do card GNSS
+  document.getElementById('gnss-toggle').addEventListener('click', function(){
+    document.getElementById('gnss-card').classList.toggle('collapsed');
+  });
+
+  // Botão de coleta
+  document.getElementById('collect-btn').addEventListener('click', function(){
+    AudioFB.init(); // Garante que o AudioContext foi iniciado
+    if(S.autoActive){Collection.toggleAuto();}
+    else{Collection.addPoint();}
+  });
+
+  // Botão modo automático
+  document.getElementById('btn-auto-mode').addEventListener('click', function(){
+    if(S.collectMode==='manual'){
+      Toast.show('Selecione modo automatico nas configuracoes.','warning');
+      UI.openPanel('panel-settings');return;
+    }
+    Collection.toggleAuto();
+  });
+
+  // Botão dark mode
+  document.getElementById('btn-dark').addEventListener('click', function(){UI.toggleDark();});
+
+  // Navegação inferior
+  document.querySelectorAll('.nav-item').forEach(function(item){
+    item.addEventListener('click', function(){
+      var nav=this.getAttribute('data-nav');
+      UI.setActiveNav(nav);
+      if(nav==='map'){UI.closeAllPanels();}
+      else if(nav==='points'){UI.openPanel('panel-points');}
+      else if(nav==='export'){UI.openPanel('panel-export');}
+      else if(nav==='projects'){UI.openPanel('panel-projects');}
+      else if(nav==='settings'){UI.openPanel('panel-settings');}
+    });
+  });
+
+  // Fechar painéis
+  document.getElementById('panel-overlay').addEventListener('click', function(){UI.closeAllPanels();});
+  document.querySelectorAll('.panel-close').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var id=this.getAttribute('data-close');
+      document.getElementById('panel-overlay').classList.remove('open');
+      document.getElementById(id).classList.remove('open');
+    });
+  });
+
+  // ===== CONFIGURAÇÕES =====
+  document.getElementById('set-collect-mode').addEventListener('change', function(){
+    S.collectMode=this.value;
+    document.getElementById('set-time-row').style.display=this.value==='time'?'flex':'none';
+    document.getElementById('set-dist-row').style.display=this.value==='distance'?'flex':'none';
+    if(S.autoActive)Collection.stopAuto();
+    Storage.saveSettings();
+  });
+  document.getElementById('set-interval').addEventListener('change', function(){S.autoInterval=parseInt(this.value)||5;Storage.saveSettings();});
+  document.getElementById('set-distance').addEventListener('change', function(){S.autoDistance=parseFloat(this.value)||3;Storage.saveSettings();});
+  document.getElementById('set-threshold').addEventListener('change', function(){S.accuracyThreshold=parseFloat(this.value)||5;Storage.saveSettings();UI.updateCollectButton();});
+  document.getElementById('set-map-layer').addEventListener('change', function(){MapManager.setLayer(this.value);Storage.saveSettings();});
+  document.getElementById('set-datum').addEventListener('change', function(){S.datum=this.value;Storage.saveSettings();});
+
+  document.getElementById('set-dark-toggle').addEventListener('click', function(){UI.toggleDark();});
+  document.getElementById('set-sound-toggle').addEventListener('click', function(){
+    S.soundEnabled=!S.soundEnabled;this.classList.toggle('on',S.soundEnabled);Storage.saveSettings();
+  });
+  document.getElementById('set-vibrate-toggle').addEventListener('click', function(){
+    S.vibrateEnabled=!S.vibrateEnabled;this.classList.toggle('on',S.vibrateEnabled);Storage.saveSettings();
+  });
+
+  // ===== EXPORTAÇÃO =====
+  document.getElementById('exp-kml').addEventListener('click', function(){ExportManager.toKML();});
+  document.getElementById('exp-csv').addEventListener('click', function(){ExportManager.toCSV();});
+  document.getElementById('exp-geo').addEventListener('click', function(){ExportManager.toGeoJSON();});
+  document.getElementById('exp-report').addEventListener('click', function(){ReportManager.generate();});
+  document.getElementById('exp-share').addEventListener('click', function(){ExportManager.share();});
+  document.getElementById('exp-import').addEventListener('click', function(){document.getElementById('file-import').click();});
+  document.getElementById('file-import').addEventListener('change', function(){
+    if(this.files.length>0){ImportManager.handleFile(this.files[0]);this.value='';}
+  });
+
+  // ===== RELATÓRIO =====
+  document.getElementById('report-back').addEventListener('click', function(){
+    document.getElementById('report-view').classList.remove('open');
+  });
+  document.getElementById('report-print').addEventListener('click', function(){
+    window.print();
+  });
+
+  // ===== PROJETOS =====
+  document.getElementById('btn-new-project').addEventListener('click', function(){
+    if(S.points.length>0){
+      // Salvar projeto atual antes de criar novo
+      Storage.saveProject(S.projectName);
+      Collection.clearAll();
+      Toast.show('Projeto salvo automaticamente.','success');
+    }
+    document.getElementById('modal-new-project').classList.add('open');
+    document.getElementById('input-project-name').value='';
+    setTimeout(function(){document.getElementById('input-project-name').focus();},100);
+  });
+  document.getElementById('modal-project-cancel').addEventListener('click', function(){
+    document.getElementById('modal-new-project').classList.remove('open');
+  });
+  document.getElementById('modal-project-save').addEventListener('click', function(){
+    var name=document.getElementById('input-project-name').value.trim();
+    if(!name){Toast.show('Digite um nome.','warning');return;}
+    S.projectName=name;S.currentProjectId=Date.now().toString();
+    document.getElementById('header-project').textContent=S.projectName;
+    document.getElementById('modal-new-project').classList.remove('open');
+    Toast.show('Projeto "'+name+'" criado.','success');
+  });
+  document.getElementById('input-project-name').addEventListener('keydown', function(e){
+    if(e.key==='Enter')document.getElementById('modal-project-save').click();
+  });
+
+  // ===== INICIA GNSS =====
+  GNSS.start();
+
+  // Atualiza lista de pontos inicial
+  UI.updatePointsList();
+});
+</script>
+</body>
+</html>
