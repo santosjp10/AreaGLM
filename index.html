@@ -47,7 +47,7 @@ header .hdr-btn:active{background:var(--border-light);color:var(--fg)}
 .dark .leaflet-tile-pane{filter:brightness(.85) contrast(1.1)}
 .gnss-overlay{position:absolute;top:8px;left:8px;right:8px;z-index:50;display:flex;flex-direction:column;gap:6px;pointer-events:none}
 .gnss-overlay>*{pointer-events:auto}
-.gnss-card{background:var(--card);border-radius:var(--radius);padding:10px 12px;box-shadow:var(--shadow-lg);border:1px solid var(--border);pointer-events:auto;transition:max-height .3s ease}
+.gnss-card{background:var(--card);border-radius:var(--radius);padding:10px 12px;box-shadow:var(--shadow-lg);border:1px solid var(--border);pointer-events:auto;transition:all .3s ease}
 .gnss-card.collapsed .gnss-details{display:none}
 .gnss-card.collapsed{padding:8px 12px}
 .gnss-header{display:flex;align-items:center;gap:8px;cursor:pointer}
@@ -57,6 +57,22 @@ header .hdr-btn:active{background:var(--border-light);color:var(--fg)}
 .gnss-header .acc-text span{font-size:10px;font-weight:400;color:var(--muted)}
 .gnss-header .toggle-icon{font-size:11px;color:var(--muted);transition:transform .3s}
 .gnss-card.collapsed .toggle-icon{transform:rotate(180deg)}
+.gnss-minimize-btn{width:26px;height:26px;border-radius:var(--radius-xs);background:var(--border-light);color:var(--muted);display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0;transition:all .2s;cursor:pointer}
+.gnss-minimize-btn:active{background:var(--border);color:var(--fg)}
+.gnss-card.minimized{padding:6px 10px;border-radius:20px;display:flex;align-items:center;gap:8px}
+.gnss-card.minimized .gnss-header{display:none}
+.gnss-card.minimized .gnss-details{display:none}
+.gnss-card.minimized .gnss-minimized-view{display:flex}
+.gnss-minimized-view{display:none;align-items:center;gap:6px;flex:1;min-width:0;cursor:pointer}
+.gnss-minimized-view .mini-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;animation:pulse-dot 2s infinite}
+.gnss-minimized-view .mini-info{display:flex;align-items:center;gap:6px;flex:1;min-width:0;flex-wrap:nowrap;overflow:hidden}
+.gnss-minimized-view .mini-acc{font-size:11px;font-weight:700;font-family:var(--mono);color:var(--fg);white-space:nowrap}
+.gnss-minimized-view .mini-sep{color:var(--border);font-size:10px;flex-shrink:0}
+.gnss-minimized-view .mini-sats{font-size:10px;color:var(--muted);font-family:var(--mono);white-space:nowrap;display:flex;align-items:center;gap:3px}
+.gnss-minimized-view .mini-sats i{font-size:8px}
+.gnss-minimized-view .mini-coords{font-size:9px;color:var(--muted);font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-left:auto}
+.gnss-minimized-view .gnss-restore-btn{width:24px;height:24px;border-radius:50%;background:var(--border-light);color:var(--muted);display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0;transition:all .2s;cursor:pointer}
+.gnss-minimized-view .gnss-restore-btn:active{background:var(--border);color:var(--fg)}
 .gnss-details{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;margin-top:8px}
 .gnss-row{display:flex;flex-direction:column;gap:1px}
 .gnss-label{font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:600}
@@ -253,6 +269,7 @@ nav#bottom-nav{height:calc(var(--nav-h) + var(--safe-b));padding-bottom:var(--sa
         <div class="gnss-header" id="gnss-toggle">
           <div class="acc-dot" id="acc-dot" style="background:var(--border)"></div>
           <div class="acc-text" id="acc-text">Aguardando GNSS...</div>
+          <button class="gnss-minimize-btn" id="gnss-minimize-btn" title="Minimizar"><i class="fas fa-minus"></i></button>
           <i class="fas fa-chevron-up toggle-icon"></i>
         </div>
         <div class="gnss-details" id="gnss-details">
@@ -268,6 +285,16 @@ nav#bottom-nav{height:calc(var(--nav-h) + var(--safe-b));padding-bottom:var(--sa
             <div class="sat-badge"><i class="fas fa-circle" style="color:#2ECC71"></i> GAL: <span id="sat-gal">--</span></div>
             <div class="sat-badge"><i class="fas fa-circle" style="color:#F39C12"></i> BDS: <span id="sat-bds">--</span></div>
           </div>
+        </div>
+        <div class="gnss-minimized-view" id="gnss-minimized-view">
+          <div class="mini-dot" id="acc-dot-mini" style="background:var(--border)"></div>
+          <div class="mini-info">
+            <span class="mini-acc" id="mini-acc">--</span>
+            <span class="mini-sep">|</span>
+            <span class="mini-sats"><i class="fas fa-satellite"></i> <span id="mini-sat-count">--</span></span>
+          </div>
+          <span class="mini-coords" id="mini-coords">--, --</span>
+          <button class="gnss-restore-btn" id="gnss-restore-btn" title="Restaurar"><i class="fas fa-expand-alt"></i></button>
         </div>
       </div>
     </div>
@@ -681,9 +708,11 @@ var DistanceCalc = {
 var UI = {
   getAccuracyColor:function(acc){if(acc==null)return'var(--border)';if(acc<=2)return'var(--success)';if(acc<=S.accuracyThreshold*0.7)return'#84CC16';if(acc<=S.accuracyThreshold)return'var(--warning)';return'var(--danger)';},
   updateGNSS:function(){
-    var g=S.gnss,acc=g.accuracy,col=this.getAccuracyColor(acc);document.getElementById('acc-dot').style.background=col;
+    var g=S.gnss,acc=g.accuracy,col=this.getAccuracyColor(acc);document.getElementById('acc-dot').style.background=col;document.getElementById('acc-dot-mini').style.background=col;
     var at=document.getElementById('acc-text');
-    if(acc!=null){var label=acc<=2?'Excelente':acc<=S.accuracyThreshold*0.7?'Bom':acc<=S.accuracyThreshold?'Moderado':'Baixo - Bloqueado';at.innerHTML=acc.toFixed(1)+'m <span>'+label+'</span>';}else at.innerHTML='Aguardando GNSS...';
+    if(acc!=null){var label=acc<=2?'Excelente':acc<=S.accuracyThreshold*0.7?'Bom':acc<=S.accuracyThreshold?'Moderado':'Baixo - Bloqueado';at.innerHTML=acc.toFixed(1)+'m <span>'+label+'</span>';document.getElementById('mini-acc').textContent=acc.toFixed(1)+'m';}else{at.innerHTML='Aguardando GNSS...';document.getElementById('mini-acc').textContent='Aguardando...';}
+    var totalSat=g.satGps+g.satGlo+g.satGal+g.satBds;document.getElementById('mini-sat-count').textContent=totalSat>0?totalSat+' sat':'--';
+    if(g.lat!=null&&g.lng!=null){document.getElementById('mini-coords').textContent=Coords.fmtDec(g.lat)+', '+Coords.fmtDec(g.lng);}else{document.getElementById('mini-coords').textContent='--, --';}
     document.getElementById('gnss-lat').textContent=Coords.fmtDec(g.lat);document.getElementById('gnss-lng').textContent=Coords.fmtDec(g.lng);
     document.getElementById('gnss-alt').textContent=g.alt!=null?g.alt.toFixed(1)+' m':'--';
     if(g.lat!=null&&g.lng!=null){var utm=Coords.toUTM(g.lat,g.lng);document.getElementById('gnss-utm-e').textContent=utm.easting.toFixed(2)+' m';document.getElementById('gnss-utm-n').textContent=utm.northing.toFixed(2)+' m';document.getElementById('gnss-zone').textContent=utm.zone+utm.hemisphere;}
@@ -746,7 +775,11 @@ document.addEventListener('DOMContentLoaded', function(){
   MapManager.init();AudioFB.init();Tutorial.init();
 
   // Card GNSS colapsável
-  document.getElementById('gnss-toggle').addEventListener('click',function(){document.getElementById('gnss-card').classList.toggle('collapsed');});
+  document.getElementById('gnss-toggle').addEventListener('click',function(e){if(e.target.closest('.gnss-minimize-btn'))return;document.getElementById('gnss-card').classList.toggle('collapsed');});
+  // Minimizar janela GNSS
+  document.getElementById('gnss-minimize-btn').addEventListener('click',function(e){e.stopPropagation();document.getElementById('gnss-card').classList.add('minimized');});
+  // Restaurar janela GNSS
+  document.getElementById('gnss-minimized-view').addEventListener('click',function(e){if(e.target.closest('.gnss-restore-btn'))e.stopPropagation();document.getElementById('gnss-card').classList.remove('minimized');});
 
   // Botão coleta
   document.getElementById('collect-btn').addEventListener('click',function(){AudioFB.init();if(S.autoActive){Collection.toggleAuto();}else{Collection.addPoint();}});
